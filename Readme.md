@@ -44,6 +44,7 @@ winget install varadisthedev.DupeLocatR
 dlr                 Scan the current directory
 dlr <folder>        Scan a specific folder, e.g. dlr D:\Photos
 dlr help            Show the command list (also: -h, --help, /?)
+dlr -DryRun          Preview duplicate files that would be deleted
 ```
 
 The same help is available in the app via menu option **[4] About / help**.
@@ -57,6 +58,8 @@ The same help is available in the app via menu option **[4] About / help**.
 powershell -ExecutionPolicy Bypass -File DupeLocatr.ps1
 # Or scan a specific folder:
 powershell -ExecutionPolicy Bypass -File DupeLocatr.ps1 -Path "D:\Photos"
+# Preview duplicate files without deleting or moving anything:
+powershell -ExecutionPolicy Bypass -File DupeLocatr.ps1 -Path "D:\Photos" -DryRun
 # Or double-click:
 Run_DupeLocatr.bat
 ```
