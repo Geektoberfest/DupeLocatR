@@ -3,6 +3,7 @@
 param(
     [string]$Path = (Get-Location).Path,
     [Alias('h','?')][switch]$Help,
+    [switch]$DryRun,
     [Alias('v')][switch]$Version
 )
 
@@ -799,12 +800,12 @@ function Show-Help {
     Write-Host "  COMMANDS" -ForegroundColor Magenta
     Write-Host "   dlr                  Scan the current directory" -ForegroundColor White
     Write-Host "   dlr <folder>         Scan a specific folder, e.g. dlr D:\Photos" -ForegroundColor White
+    Write-Host "   dlr -DryRun          Preview duplicate files that would be deleted" -ForegroundColor White
     Write-Host "   dlr help | -h | /?   Show this help" -ForegroundColor White
     Write-Host "   dlr --version | -v   Show the installed version" -ForegroundColor White
     Write-Host ""
     Write-Host "  Without the shim:" -ForegroundColor Gray
-    Write-Host "   powershell -File DupeLocatr.ps1 [-Path <folder>] [-Help]" -ForegroundColor Gray
-    Write-Host "   powershell -File DupeLocatr.ps1 -Version" -ForegroundColor Gray
+    Write-Host "   powershell -File DupeLocatr.ps1 [-Path <folder>] [-Help] [-DryRun] [-Version]" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  MENU" -ForegroundColor Magenta
     Write-Host "   [1] Start duplicate scan   [2] Settings   [3] View log   [4] Help   [5] Exit" -ForegroundColor White
@@ -882,4 +883,41 @@ function Show-MainMenu {
 #  ENTRY POINT
 # ======================================================================
 if ($Help) { Show-Help; return }
+
+if ($DryRun) {
+    Write-Host ""
+    Write-Host "  DRY RUN - no files will be changed." -ForegroundColor Cyan
+    Write-Host "  Scanning: $Script:RootPath" -ForegroundColor Gray
+
+    $results = Find-Duplicates
+    $allDupes = @(
+        foreach ($grp in $results) {
+            foreach ($dupe in $grp.DuplicateFiles) {
+                $dupe
+            }
+        }
+    )
+
+    $totalSize = ($allDupes | Measure-Object -Property Length -Sum).Sum
+
+    Write-Host ""
+    Write-Host "  Files that would be deleted: $($allDupes.Count)" -ForegroundColor Yellow
+    Write-Host "  Space that could be freed:  $(Format-Size $totalSize)" -ForegroundColor Yellow
+
+    if ($allDupes.Count -gt 0) {
+        Write-Host ""
+        Write-Host "  Duplicate files:" -ForegroundColor Cyan
+        foreach ($file in $allDupes) {
+            Write-Host "    $($file.FullName)" -ForegroundColor White
+        }
+    }
+    else {
+        Write-Host "  No duplicate files found." -ForegroundColor Green
+    }
+
+    Write-Host ""
+    Write-Host "  Dry run complete. No files were deleted or moved." -ForegroundColor Green
+    return
+}
+
 Show-MainMenu
