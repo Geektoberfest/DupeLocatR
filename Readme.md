@@ -40,11 +40,13 @@ winget install varadisthedev.DupeLocatR
 
 ## Usage
 
-```
+```text
 dlr                 Scan the current directory
 dlr <folder>        Scan a specific folder, e.g. dlr D:\Photos
 dlr help            Show the command list (also: -h, --help, /?)
-dlr -DryRun          Preview duplicate files that would be deleted
+dlr -DryRun         Preview duplicate files that would be deleted
+dlr --version       Show the installed version
+dlr -v              Show the installed version
 ```
 
 The same help is available in the app via menu option **[4] About / help**.
@@ -56,15 +58,19 @@ The same help is available in the app via menu option **[4] About / help**.
 ```powershell
 # Clone or download the repo, then:
 powershell -ExecutionPolicy Bypass -File DupeLocatr.ps1
+
 # Or scan a specific folder:
 powershell -ExecutionPolicy Bypass -File DupeLocatr.ps1 -Path "D:\Photos"
+
 # Preview duplicate files without deleting or moving anything:
 powershell -ExecutionPolicy Bypass -File DupeLocatr.ps1 -Path "D:\Photos" -DryRun
+
+# Show the version:
+powershell -ExecutionPolicy Bypass -File DupeLocatr.ps1 -Version
+
 # Or double-click:
 Run_DupeLocatr.bat
 ```
-
----
 
 ## How it works
 
@@ -116,4 +122,4 @@ If you installed from the release ZIP, delete the extracted folder and remove it
 
 ## License
 
-MIT
+This project is licensed under the [MIT License](LICENSE).

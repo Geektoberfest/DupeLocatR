@@ -3,8 +3,14 @@
 param(
     [string]$Path = (Get-Location).Path,
     [Alias('h','?')][switch]$Help,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [Alias('v')][switch]$Version
 )
+
+if ($Version) {
+    Write-Output "DupeLocatR 1.0.0"
+    exit 0
+}
 
 # ======================================================================
 #  CONFIG / STATE
@@ -796,8 +802,10 @@ function Show-Help {
     Write-Host "   dlr <folder>         Scan a specific folder, e.g. dlr D:\Photos" -ForegroundColor White
     Write-Host "   dlr -DryRun          Preview duplicate files that would be deleted" -ForegroundColor White
     Write-Host "   dlr help | -h | /?   Show this help" -ForegroundColor White
+    Write-Host "   dlr --version | -v   Show the installed version" -ForegroundColor White
     Write-Host ""
-    Write-Host "  Without the shim: powershell -File DupeLocatr.ps1 [-Path <folder>] [-Help] [-DryRun]" -ForegroundColor Gray
+    Write-Host "  Without the shim:" -ForegroundColor Gray
+    Write-Host "   powershell -File DupeLocatr.ps1 [-Path <folder>] [-Help] [-DryRun] [-Version]" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  MENU" -ForegroundColor Magenta
     Write-Host "   [1] Start duplicate scan   [2] Settings   [3] View log   [4] Help   [5] Exit" -ForegroundColor White
