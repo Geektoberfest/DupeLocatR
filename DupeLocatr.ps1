@@ -42,6 +42,14 @@ $Script:Categories = @{
     'Archives'  = @('.zip', '.rar', '.7z', '.tar', '.gz', '.bz2')
 }
 
+function Test-IsWindows {
+    return ($PSVersionTable.PSVersion.Major -lt 6 -or $IsWindows)
+}
+
+function Test-UseCaseInsensitivePaths {
+    return ((Test-IsWindows) -or $IsMacOS)
+}
+
 try { $Host.UI.RawUI.WindowTitle = "DupeLocatr" } catch {}
 
 # ======================================================================
@@ -74,9 +82,10 @@ function Write-Banner {
 }
 
 function Update-ExcludeSet {
+    $comparer = if (Test-UseCaseInsensitivePaths) { [System.StringComparer]::OrdinalIgnoreCase } else { [System.StringComparer]::Ordinal }
     $Script:ExcludeSet = [System.Collections.Generic.HashSet[string]]::new(
         [string[]]($Script:ExcludeFolders | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }),
-        [System.StringComparer]::OrdinalIgnoreCase
+        $comparer
     )
 }
 
@@ -88,9 +97,13 @@ function Test-IsExcludedDirName {
 
 function Test-IsExcludedFile {
     param([string]$FullPath)
-    if ($Script:ScriptSelf -and $FullPath -eq $Script:ScriptSelf) { return $true }
-    if ($FullPath -eq $Script:LogPath) { return $true }
-    if ($FullPath -like "*dupeLocatr_*") { return $true }
+    $comparison = if (Test-UseCaseInsensitivePaths) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+    if ($Script:ScriptSelf -and $FullPath.Equals($Script:ScriptSelf, $comparison)) { return $true }
+    if ($FullPath.Equals($Script:LogPath, $comparison)) { return $true }
+    $fileName = [System.IO.Path]::GetFileName($FullPath)
+    $reportPattern = '^dupeLocatr_report_\d{8}_\d{6}\.(csv|json)$'
+    $regexOptions = if (Test-UseCaseInsensitivePaths) { [System.Text.RegularExpressions.RegexOptions]::IgnoreCase } else { [System.Text.RegularExpressions.RegexOptions]::None }
+    if ([regex]::IsMatch($fileName, $reportPattern, $regexOptions)) { return $true }
     return $false
 }
 
@@ -236,7 +249,9 @@ function Get-CandidateFiles {
 
         try { $subDirs = $dir.GetDirectories() } catch { $subDirs = @() }
         foreach ($subDir in $subDirs) {
-            if (-not (Test-IsExcludedDirName $subDir.Name)) {
+            # Do not follow directory links, which can point outside the scan root or form loops.
+            if (-not ($subDir.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and
+                -not (Test-IsExcludedDirName $subDir.Name)) {
                 $stack.Push($subDir)
             }
         }
@@ -594,17 +609,8 @@ function Invoke-MoveDuplicates {
         }
 
         try {
-            robocopy $f.DirectoryName $destFolder $f.Name /MOV /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
-            $movedRaw = Join-Path $destFolder $f.Name
-            if ((Test-Path -LiteralPath $movedRaw) -and ($destName -ne $f.Name)) {
-                Rename-Item -LiteralPath $movedRaw -NewName $destName -ErrorAction SilentlyContinue
-            }
-            if ((Test-Path -LiteralPath $movedRaw) -or (Test-Path -LiteralPath $destPath)) {
-                $moved++
-            }
-            else {
-                $errors++
-            }
+            Move-Item -LiteralPath $f.FullName -Destination $destPath -ErrorAction Stop
+            $moved++
         }
         catch {
             $errors++
@@ -621,8 +627,17 @@ function Invoke-MoveDuplicates {
 function Invoke-DeleteDuplicates {
     param($Results)
 
-    $hasVB = $true
-    try { Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction Stop } catch { $hasVB = $false }
+    if (-not (Test-IsWindows)) {
+        Write-Host "  Recycle Bin deletion is available only on Windows. Use Move to stage duplicates." -ForegroundColor Yellow
+        Read-Host "  Press Enter to continue" | Out-Null
+        return
+    }
+    try { Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction Stop }
+    catch {
+        Write-Host "  The Windows Recycle Bin is unavailable. No files were deleted." -ForegroundColor Red
+        Read-Host "  Press Enter to continue" | Out-Null
+        return
+    }
 
     $allDupes = New-Object System.Collections.Generic.List[System.IO.FileInfo]
     foreach ($grp in $Results) { foreach ($d in $grp.DuplicateFiles) { $allDupes.Add($d) } }
@@ -646,16 +661,11 @@ function Invoke-DeleteDuplicates {
         $i++
         Write-Progress -Activity "DupeLocatr | Deleting duplicates" -Status "$i / $count : $($f.Name)" -PercentComplete ([Math]::Round(($i / $count) * 100))
         try {
-            if ($hasVB) {
-                [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(
-                    $f.FullName,
-                    [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
-                    [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
-                )
-            }
-            else {
-                Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop
-            }
+            [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(
+                $f.FullName,
+                [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
+                [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin
+            )
             $deleted++
         }
         catch {
@@ -700,7 +710,12 @@ function Show-ScanResults {
         Write-Host "  What would you like to do?" -ForegroundColor Cyan
         Write-Host "   [1] View the detailed list"
         Write-Host "   [2] Move duplicates to '$Script:DupeFolderName' folder (safe, undoable)"
-        Write-Host "   [3] Delete duplicates (sent to Recycle Bin, recoverable)"
+        if (Test-IsWindows) {
+            Write-Host "   [3] Delete duplicates (sent to Recycle Bin, recoverable)"
+        }
+        else {
+            Write-Host "   [3] Delete duplicates (Windows only)"
+        }
         Write-Host "   [4] Export report to CSV"
         Write-Host "   [5] Return to main menu"
         $choice = Read-Host "  Choose an option (1-5)"
@@ -798,13 +813,10 @@ function Show-SettingsMenu {
 function Show-Help {
     Write-Host "  COMMANDS" -ForegroundColor Magenta
     Write-Host "   dlr                  Scan the current directory" -ForegroundColor White
-    Write-Host "   dlr <folder>         Scan a specific folder, e.g. dlr D:\Photos" -ForegroundColor White
+    $examplePath = if (Test-IsWindows) { 'D:\Photos' } else { '~/Photos' }
+    Write-Host "   dlr <folder>         Scan a specific folder, e.g. dlr $examplePath" -ForegroundColor White
     Write-Host "   dlr help | -h | /?   Show this help" -ForegroundColor White
     Write-Host "   dlr --version | -v   Show the installed version" -ForegroundColor White
-    Write-Host ""
-    Write-Host "  Without the shim:" -ForegroundColor Gray
-    Write-Host "   powershell -File DupeLocatr.ps1 [-Path <folder>] [-Help]" -ForegroundColor Gray
-    Write-Host "   powershell -File DupeLocatr.ps1 -Version" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  MENU" -ForegroundColor Magenta
     Write-Host "   [1] Start duplicate scan   [2] Settings   [3] View log   [4] Help   [5] Exit" -ForegroundColor White
@@ -863,8 +875,13 @@ function Show-MainMenu {
                 Write-Host "  scans (configurable in Settings)." -ForegroundColor White
                 Write-Host ""
                 Write-Host "  It never deletes or moves anything without asking first." -ForegroundColor White
-                Write-Host "  Deletions go to the Recycle Bin, not permanent removal." -ForegroundColor White
-                Write-Host "  Moves use robocopy and land in the '$Script:DupeFolderName' folder." -ForegroundColor White
+                if (Test-IsWindows) {
+                    Write-Host "  Deletions go to the Recycle Bin, not permanent removal." -ForegroundColor White
+                }
+                else {
+                    Write-Host "  Recycle Bin deletion is available only on Windows." -ForegroundColor White
+                }
+                Write-Host "  Moves land in the '$Script:DupeFolderName' folder." -ForegroundColor White
                 Write-Host ""
                 Show-Help
                 Read-Host "  Press Enter to go back" | Out-Null
@@ -882,4 +899,6 @@ function Show-MainMenu {
 #  ENTRY POINT
 # ======================================================================
 if ($Help) { Show-Help; return }
-Show-MainMenu
+if ($MyInvocation.InvocationName -ne '.') {
+    Show-MainMenu
+}

@@ -1,6 +1,6 @@
 # DupeLocatR
 
-> Fast, menu-driven duplicate file finder for Windows — type `dlr` from anywhere to scan.
+> Fast, menu-driven duplicate file finder for Windows, Linux, and macOS — type `dlr` from anywhere to scan.
 
 ---
 
@@ -8,13 +8,22 @@
 
 **⬇️ Quick download:** [DupeLocatR-1.0.0.zip](https://github.com/Geektoberfest/Geektoberfest-DupeLocatR/releases/download/v1.0.0/DupeLocatR-1.0.0.zip) · [All releases](https://github.com/Geektoberfest/Geektoberfest-DupeLocatR/releases)
 
-### Download from GitHub Releases *(available now)*
+### Download from GitHub Releases *(Windows release available now)*
 
 1. Download `DupeLocatR-<version>.zip` from the [latest release](https://github.com/Geektoberfest/Geektoberfest-DupeLocatR/releases/latest).
 2. Extract it anywhere and add that folder to your `PATH`.
-3. Open any terminal and type `dlr`.
+3. Open a terminal and type `dlr`.
 
-### via Scoop *(available now, one command)*
+The linked v1.0.0 ZIP predates the Unix launcher. On Linux or macOS, install PowerShell 7 and use the source checkout until a release includes `dlr`:
+
+```sh
+git clone https://github.com/Geektoberfest/Geektoberfest-DupeLocatR.git
+cd Geektoberfest-DupeLocatR
+chmod +x dlr
+./dlr ~/Photos
+```
+
+### via Scoop *(Windows; available now, one command)*
 
 ```powershell
 scoop install https://raw.githubusercontent.com/varadisthedev/DupeLocatR/main/scoop/dupelocatr.json
@@ -28,7 +37,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 irm get.scoop.sh | iex
 ```
 
-### via winget *(pending review — not yet available)*
+### via winget *(Windows; pending review — not yet available)*
 
 The manifest has been submitted to `microsoft/winget-pkgs` and is awaiting approval. Once merged:
 
@@ -46,6 +55,14 @@ dlr <folder>        Scan a specific folder, e.g. dlr D:\Photos
 dlr help            Show the command list (also: -h, --help, /?)
 dlr --version       Show the installed version
 dlr -v              Show the installed version
+```
+
+On Linux and macOS, use the `dlr` shell launcher with PowerShell 7 (`pwsh`):
+
+```sh
+./dlr ~/Photos
+./dlr --help
+./dlr --version
 ```
 
 The same help is available in the app via menu option **[4] About / help**.
@@ -67,6 +84,8 @@ powershell -ExecutionPolicy Bypass -File DupeLocatr.ps1 -Version
 # Or double-click:
 Run_DupeLocatr.bat
 ```
+
+On Linux and macOS, use `pwsh -File ./DupeLocatr.ps1 -Path ~/Photos` or the `dlr` launcher. The move action stages copies in `encounted_duplicates`; Recycle Bin deletion is available only on Windows.
 
 ---
 
@@ -100,7 +119,7 @@ Excluded folders (`.git`, `node_modules`, `.vs`, etc.) are skipped **during** th
 - Category filter: scan only Images, Videos, Music, etc.
 - **Keep strategy**: keep the alphabetically first / oldest / newest / shortest-path copy
 - **Parallel hashing**: sampling and full-hash confirmation run across multiple threads (auto-tuned to CPU cores, configurable)
-- **Safe actions**: Move duplicates to a staging folder (undoable) or send to Recycle Bin (recoverable)
+- **Safe actions**: Move duplicates to a staging folder (undoable) on every platform; send them to the Recycle Bin on Windows
 - Exports a CSV report
 - Colored console + progress bars
 - Never modifies anything without explicit confirmation
@@ -115,6 +134,17 @@ winget uninstall varadisthedev.DupeLocatR   # once available via winget
 ```
 
 If you installed from the release ZIP, delete the extracted folder and remove it from `PATH`.
+
+## Tests
+
+The Pester suite covers recursive scanning, file hashing, and duplicate keep strategies. Run it locally with PowerShell 5.1 or later:
+
+```powershell
+Install-Module Pester -MinimumVersion 5.0.0 -MaximumVersion 5.99.99 -Scope CurrentUser
+Invoke-Pester -Path ./tests -CI
+```
+
+GitHub Actions runs the same suite on Windows, Linux, and macOS for every pull request.
 
 ---
 

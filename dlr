@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# DupeLocatR launcher for Linux and macOS.
+set -eu
+
+if ! command -v pwsh >/dev/null 2>&1; then
+    printf '%s\n' '[DupeLocatR] PowerShell 7 (pwsh) is required.' >&2
+    exit 1
+fi
+
+script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+script_path=$script_dir/DupeLocatr.ps1
+if [ ! -f "$script_path" ]; then
+    printf '%s\n' '[DupeLocatR] DupeLocatr.ps1 was not found next to dlr.' >&2
+    exit 1
+fi
+
+case ${1-} in
+    help|-h|--help|'-?'|'/?') exec pwsh -NoProfile -File "$script_path" -Help ;;
+    -v|--version) exec pwsh -NoProfile -File "$script_path" -Version ;;
+esac
+
+target=${1:-$PWD}
+exec pwsh -NoProfile -File "$script_path" -Path "$target"

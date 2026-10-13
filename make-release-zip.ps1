@@ -23,7 +23,8 @@ $zipPath  = Join-Path $repoRoot $zipName
 # Files to include in the release ZIP
 $files = @(
     (Join-Path $repoRoot "DupeLocatr.ps1"),
-    (Join-Path $repoRoot "dlr.cmd")
+    (Join-Path $repoRoot "dlr.cmd"),
+    (Join-Path $repoRoot "dlr")
 )
 
 # Validate all files exist
