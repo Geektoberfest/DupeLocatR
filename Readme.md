@@ -101,7 +101,7 @@ Excluded folders (`.git`, `node_modules`, `.vs`, etc.) are skipped **during** th
 - **Keep strategy**: keep the alphabetically first / oldest / newest / shortest-path copy
 - **Parallel hashing**: sampling and full-hash confirmation run across multiple threads (auto-tuned to CPU cores, configurable)
 - **Safe actions**: Move duplicates to a staging folder (undoable) or send to Recycle Bin (recoverable)
-- Exports a CSV report
+- Exports duplicate groups to CSV or JSON, including each group's content hash, size, and file paths
 - Colored console + progress bars
 - Never modifies anything without explicit confirmation
 

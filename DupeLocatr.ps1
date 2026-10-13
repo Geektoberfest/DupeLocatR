@@ -470,6 +470,8 @@ param(`$f)
     foreach ($key in $fullMap.Keys) {
         $group = $fullMap[$key]
         if ($group.Count -gt 1) {
+            $separatorIndex = $key.IndexOf('_')
+            $hash = $key.Substring($separatorIndex + 1)
             $sorted = switch ($Script:KeepStrategy) {
                 'Oldest' { $group | Sort-Object LastWriteTime }
                 'Newest' { $group | Sort-Object LastWriteTime -Descending }
@@ -479,7 +481,7 @@ param(`$f)
             $keep = $sorted[0]
             $dupes = @($sorted | Select-Object -Skip 1)
             $results += [PSCustomObject]@{
-                Hash           = $key
+                Hash           = $hash
                 SizeEach       = $keep.Length
                 KeepFile       = $keep
                 DuplicateFiles = $dupes
@@ -529,20 +531,48 @@ function Show-DetailedList {
 }
 
 function Export-DuplicateReport {
-    param($Results)
-    $csvPath = Join-Path $Script:RootPath ("dupeLocatr_report_{0}.csv" -f (Get-Date -Format 'yyyyMMdd_HHmmss'))
-    $rows = @()
+    param($Results, [ValidateSet('CSV', 'JSON')][string]$Format)
+
+    $extension = $Format.ToLowerInvariant()
+    $reportPath = Join-Path $Script:RootPath ("dupeLocatr_report_{0}.{1}" -f (Get-Date -Format 'yyyyMMdd_HHmmss'), $extension)
     $n = 1
-    foreach ($grp in $Results) {
-        $rows += [PSCustomObject]@{ Group = $n; Role = 'KEEP'; Path = $grp.KeepFile.FullName; SizeBytes = $grp.SizeEach }
-        foreach ($d in $grp.DuplicateFiles) {
-            $rows += [PSCustomObject]@{ Group = $n; Role = 'DUPLICATE'; Path = $d.FullName; SizeBytes = $grp.SizeEach }
+    try {
+        if ($Format -eq 'CSV') {
+            $rows = @()
+            foreach ($grp in $Results) {
+                $rows += [PSCustomObject]@{ Group = $n; Hash = $grp.Hash; SizeBytes = $grp.SizeEach; Role = 'KEEP'; Path = $grp.KeepFile.FullName }
+                foreach ($d in $grp.DuplicateFiles) {
+                    $rows += [PSCustomObject]@{ Group = $n; Hash = $grp.Hash; SizeBytes = $grp.SizeEach; Role = 'DUPLICATE'; Path = $d.FullName }
+                }
+                $n++
+            }
+            $rows | Export-Csv -LiteralPath $reportPath -NoTypeInformation -Encoding UTF8 -ErrorAction Stop
         }
-        $n++
+        else {
+            $groups = @(
+                foreach ($grp in $Results) {
+                    [PSCustomObject]@{
+                        Group     = $n
+                        Hash      = $grp.Hash
+                        SizeBytes = $grp.SizeEach
+                        Paths     = @(
+                            [PSCustomObject]@{ Role = 'KEEP'; Path = $grp.KeepFile.FullName }
+                            foreach ($d in $grp.DuplicateFiles) {
+                            [PSCustomObject]@{ Role = 'DUPLICATE'; Path = $d.FullName }
+                            }
+                        )
+                    }
+                    $n++
+                }
+            )
+            ConvertTo-Json -InputObject $groups -Depth 5 | Set-Content -LiteralPath $reportPath -Encoding UTF8 -ErrorAction Stop
+        }
+        Write-Host ""
+        Write-Host "  Report saved to: $reportPath" -ForegroundColor Green
     }
-    $rows | Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
-    Write-Host ""
-    Write-Host "  Report saved to: $csvPath" -ForegroundColor Green
+    catch {
+        Write-Host "  Could not save report: $($_.Exception.Message)" -ForegroundColor Red
+    }
     Start-Sleep -Seconds 1
 }
 
@@ -701,14 +731,21 @@ function Show-ScanResults {
         Write-Host "   [1] View the detailed list"
         Write-Host "   [2] Move duplicates to '$Script:DupeFolderName' folder (safe, undoable)"
         Write-Host "   [3] Delete duplicates (sent to Recycle Bin, recoverable)"
-        Write-Host "   [4] Export report to CSV"
+        Write-Host "   [4] Export report to CSV or JSON"
         Write-Host "   [5] Return to main menu"
         $choice = Read-Host "  Choose an option (1-5)"
         switch ($choice) {
             '1' { Show-DetailedList -Results $Results }
             '2' { Invoke-MoveDuplicates -Results $Results; $done = $true }
             '3' { Invoke-DeleteDuplicates -Results $Results; $done = $true }
-            '4' { Export-DuplicateReport -Results $Results }
+            '4' {
+                Write-Host "   [1] CSV (one row per file)"
+                Write-Host "   [2] JSON (one object per duplicate group)"
+                $formatChoice = Read-Host "  Choose a format (1-2)"
+                if ($formatChoice -eq '1') { Export-DuplicateReport -Results $Results -Format CSV }
+                elseif ($formatChoice -eq '2') { Export-DuplicateReport -Results $Results -Format JSON }
+                else { Write-Host "  Invalid format." -ForegroundColor Red; Start-Sleep -Seconds 1 }
+            }
             '5' { $done = $true }
             default { Write-Host "  Invalid choice." -ForegroundColor Red }
         }
